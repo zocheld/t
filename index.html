@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title></title>
+	<link rel="stylesheet" href="styles/main.css">
+    <!-- <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script> -->
+    <script src="scripts/local_Vue.min.js"></script>
+    <!-- <script src="https://cdn.jsdelivr.net/npm/signature_pad@2.3.2/dist/signature_pad.min.js"></script> -->
+    <script src="scripts/local_signature_pad.min.js"></script>
+    <script src="scripts/DrawPad.js"></script>
+    <script src="scripts/Telestration-client.js"></script>
+</head>
+<body>
+
+	<div id="gameWindow">
+		<!-- <div id="gameRound"> {{ gameRound }} </div> -->
+
+		<div id="homePanel"      class="gamePanel" v-if="showPanel == 'homePanel'">
+			<div  id="joinGameUsername" class="inputWrapper">
+				<input type="text"  autocomplete="off" placeholder="Enter Username"  v-model="username" />
+			</div>
+
+			<div class="panelSubmit hostGame" v-on:click=hostGame>Host Game</div>
+			<div   id="joinGameInput" class="inputWrapper">
+				<input type="text"   autocomplete="off" placeholder="Enter GameID"  v-model="gameID" v-on:keyup.enter="joinGame" />
+			</div>
+			<div class="panelSubmit joinGame" v-on:click=joinGame>Join Game</div>
+		</div>
+
+
+		<div id="lobbyPanel"      class="gamePanel" v-if="showPanel == 'lobbyPanel'">
+			<div id="gameIdDisplay" >{{ gameID }}</div>
+			<div id="userList">
+				<ul>
+					<li class="playerName" v-for="player in players" > {{ player.username }} </li>
+				</ul>
+			</div>
+			<div class="panelSubmit" v-on:click=startGame>Start Game</div>
+		</div>
+
+
+		<div id="inputDraw"      class="gamePanel" v-else-if="showPanel == 'inputDraw'">
+			<div id="drawPadPrompt" v-on:click="getNewPrompt">{{ drawPadPrompt }}</div>
+			<div id="drawPad">
+	    		<div class="drawPad--body">
+					<canvas></canvas>
+				</div>
+			</div>
+			<div class="panelSubmit" v-on:click=submitDrawing>Submit Drawing</div>
+		</div>
+
+
+		<div id="inputText"      class="gamePanel" v-else-if="showPanel == 'inputText'">
+			<div id="inputText-picture">
+				<img v-bind:src="imagePrompt" id="inputText-picture-img" onerror="imageLoadFailed(this)" />
+			</div>
+			<div id="inputTextField" class="inputWrapper">
+				<input type="text"   autocomplete="off" placeholder="Describe what you see."  v-model="textInput" v-on:keyup.enter="submitText" />
+			</div>
+			<div class="panelSubmit" v-on:click=submitText>Submit Description</div>
+		</div>
+
+
+		<div id="waitPanel" class="gamePanel" v-else-if="showPanel == 'waitPanel'">
+			<div class="msg">
+				waiting on other players...
+			</div>
+		</div>
+
+
+		<div id="finalPanel" class="gamePanel" v-else-if="showPanel == 'finalPanel'">
+			<div id="scrollContainer">
+				<ul>
+					<li class="result" v-for="item in finalSheet">
+						<div class="result-picture" v-if="item.type == 'draw'">
+							<img v-bind:src="item.text" id="inputText-picture-img" />
+						</div>
+						<div class="result-text" v-else-if="item.type == 'text'">
+							{{ item.text }}
+						</div>
+					</li>
+					<li class="result" >
+						<div class="result-spacer">&nbsp;</div>
+					</li>
+					<li class="result" >
+						<div class="result-text" v-on:click=resetGame>Quit Game</div>
+					</li>
+				</ul>
+			</div>
+		</div>
+	</div>
+
+    <script src="scripts/Vue.js"                ></script>
+	<script src="/socket.io/socket.io.js"       ></script>
+	<script>
+
+		window.onbeforeunload = function() {
+            if (gameApp.gameID != '')
+            {
+                var message = "Are you sure you want to navigate away from this page?\n\nIf you are in the middle of a game, it will completely mess the game up.";
+                if (confirm(message)) return true;
+                else return false;
+            }
+        }
+
+		var socket = io('/');
+		socket.on('connect',    function(    ){ console.log('connect')    });
+		socket.on('disconnect', function(    ){                           });
+		socket.on('fail',       function(data){ console.error(data)       });
+		socket.on('alert',      function(msg ){ alert(msg)                });
+
+		socket.on('switchPanel', function( panelID ){
+			gameApp.showPanel = panelID
+			if (panelID == 'inputDraw') {
+				gameApp.initCanvas()
+			}
+		});
+		socket.on('setInputDrawPrompt', function( newPrompt ){
+			gameApp.drawPadPrompt = newPrompt;
+		});
+		socket.on('setRound', function( data ){
+			console.log('setRound', data)
+			gameApp.nextRounds.push(data)
+			if (gameApp.waitingForPrompt) {
+				setTimeout(function(){
+					setNewRound();
+				}, 100)
+
+			}
+		});
+		socket.on('setResult', function( data ){
+			gameApp.finalSheet = data
+		});
+		socket.on('setPlayers', function( data ){
+			gameApp.players = data
+		});
+	</script>
+</body>
+</html>
